@@ -1,0 +1,64 @@
+{
+  "properties": {
+    "displayName": "Ensure VNet Service Endpoints and Private Link for Secure Data Access",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that VNet Service Endpoints and Private Link are configured to protect access to Azure services, such as SQL Database, from within a virtual network, preventing public exposure.",
+    "metadata": {
+      "category": "Security"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "vnetName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the Virtual Network.",
+          "displayName": "VNet Name"
+        }
+      },
+      "subnetName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the Subnet.",
+          "displayName": "Subnet Name"
+        }
+      },
+      "sqlServerName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the SQL Server.",
+          "displayName": "SQL Server Name"
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Sql/servers" // Condição: tipo do recurso deve ser um servidor SQL
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": {
+          "type": "Microsoft.Sql/servers/virtualNetworkRules",
+          "name": "[concat(parameters('sqlServerName'), '-vnetrule')]",
+          "apiVersion": "2021-02-01-preview",
+          "properties": {
+            "virtualNetworkSubnetId": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/virtualNetworks/', parameters('vnetName'), '/subnets/', parameters('subnetName'))]"
+          }
+        }
+      }
+    }
+  }
+}

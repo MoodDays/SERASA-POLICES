@@ -1,0 +1,91 @@
+{
+  "properties": {
+    "displayName": "Ensure Network Security Groups for Web Applications",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that Network Security Groups (NSG) are configured to control network traffic and prevent unauthorized access between trust boundaries for web applications.",
+    "metadata": {
+      "category": "Security"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "location": {
+        "type": "String",
+        "metadata": {
+          "description": "The location of the Network Security Group.",
+          "displayName": "Location"
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Network/networkSecurityGroups" // Condição: tipo do recurso deve ser um Network Security Group
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": {
+          "type": "Microsoft.Network/networkSecurityGroups",
+          "name": "[concat('nsg-', field('location'))]",
+          "apiVersion": "2020-11-01",
+          "location": "[parameters('location')]",
+          "properties": {
+            "securityRules": [
+              {
+                "name": "DenyAllInbound",
+                "properties": {
+                  "priority": 100,
+                  "access": "Deny",
+                  "direction": "Inbound",
+                  "sourceAddressPrefix": "*",
+                  "sourcePortRange": "*",
+                  "destinationAddressPrefix": "*",
+                  "destinationPortRange": "*",
+                  "protocol": "*"
+                }
+              },
+              {
+                "name": "AllowHTTPSInbound",
+                "properties": {
+                  "priority": 200,
+                  "access": "Allow",
+                  "direction": "Inbound",
+                  "sourceAddressPrefix": "Internet",
+                  "sourcePortRange": "*",
+                  "destinationAddressPrefix": "*",
+                  "destinationPortRange": "443",
+                  "protocol": "Tcp"
+                }
+              },
+              {
+                "name": "AllowHTTPInbound",
+                "properties": {
+                  "priority": 300,
+                  "access": "Allow",
+                  "direction": "Inbound",
+                  "sourceAddressPrefix": "Internet",
+                  "sourcePortRange": "*",
+                  "destinationAddressPrefix": "*",
+                  "destinationPortRange": "80",
+                  "protocol": "Tcp"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

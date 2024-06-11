@@ -1,0 +1,68 @@
+{
+  "properties": {
+    "displayName": "Ensure Azure App Service Environment (ASE) for Web Applications",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that web applications are hosted in an isolated and secure Azure App Service Environment (ASE), configured to allow traffic only from trusted sources, and apply security policies to restrict unauthorized remote code execution.",
+    "metadata": {
+      "category": "Security"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "vnetName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the Virtual Network.",
+          "displayName": "VNet Name"
+        }
+      },
+      "subnetName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the Subnet.",
+          "displayName": "Subnet Name"
+        }
+      },
+      "appServiceEnvironmentName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the App Service Environment.",
+          "displayName": "App Service Environment Name"
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Web/hostingEnvironments" // Condição: tipo do recurso deve ser um App Service Environment
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": {
+          "type": "Microsoft.Web/hostingEnvironments",
+          "name": "[parameters('appServiceEnvironmentName')]",
+          "apiVersion": "2020-12-01",
+          "location": "[field('location')]",
+          "properties": {
+            "virtualNetwork": {
+              "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/virtualNetworks/', parameters('vnetName'), '/subnets/', parameters('subnetName'))]"
+            },
+            "internalLoadBalancingMode": "3" // Habilita balanceamento de carga interno para ASE
+          }
+        }
+      }
+    }
+  }
+}

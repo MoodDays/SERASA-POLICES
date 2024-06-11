@@ -1,0 +1,191 @@
+{
+  "properties": {
+    "displayName": "Ensure Azure Application Gateway with WAF and Azure AD for Web Applications",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that Azure Application Gateway with WAF and Azure AD are configured to protect web applications against spoofing and to implement robust authentication and authorization.",
+    "metadata": {
+      "category": "Security"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "appGatewayName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the Azure Application Gateway.",
+          "displayName": "Application Gateway Name"
+        }
+      },
+      "resourceGroupName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the resource group where the Application Gateway is located.",
+          "displayName": "Resource Group Name"
+        }
+      },
+      "tenantId": {
+        "type": "String",
+        "metadata": {
+          "description": "The Tenant ID of the Azure Active Directory.",
+          "displayName": "Tenant ID"
+        }
+      },
+      "aadAppName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the Azure AD application.",
+          "displayName": "Azure AD Application Name"
+        }
+      },
+      "aadAppResourceGroup": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the resource group where the Azure AD application is located.",
+          "displayName": "Azure AD Application Resource Group"
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Web/sites" // Condição: tipo do recurso deve ser uma aplicação web
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": [
+          {
+            "type": "Microsoft.Network/applicationGateways",
+            "name": "[parameters('appGatewayName')]",
+            "apiVersion": "2020-09-01",
+            "properties": {
+              "sku": {
+                "name": "WAF_v2",
+                "tier": "WAF_v2",
+                "capacity": 2
+              },
+              "gatewayIPConfigurations": [
+                {
+                  "name": "appGatewayIpConfig",
+                  "properties": {
+                    "subnet": {
+                      "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', parameters('resourceGroupName'), '/providers/Microsoft.Network/virtualNetworks/', parameters('appGatewayName'), '/subnets/default')]"
+                    }
+                  }
+                }
+              ],
+              "frontendIPConfigurations": [
+                {
+                  "name": "appGatewayFrontendIP",
+                  "properties": {
+                    "publicIPAddress": {
+                      "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', parameters('resourceGroupName'), '/providers/Microsoft.Network/publicIPAddresses/', parameters('appGatewayName'), '-publicIP')]"
+                    }
+                  }
+                }
+              ],
+              "frontendPorts": [
+                {
+                  "name": "appGatewayFrontendPort",
+                  "properties": {
+                    "port": 443
+                  }
+                }
+              ],
+              "backendAddressPools": [
+                {
+                  "name": "appGatewayBackendPool",
+                  "properties": {
+                    "backendAddresses": [
+                      {
+                        "fqdn": "[concat(parameters('aadAppName'), '.azurewebsites.net')]"
+                      }
+                    ]
+                  }
+                }
+              ],
+              "backendHttpSettingsCollection": [
+                {
+                  "name": "appGatewayBackendHttpSettings",
+                  "properties": {
+                    "port": 443,
+                    "protocol": "Https",
+                    "cookieBasedAffinity": "Disabled",
+                    "pickHostNameFromBackendAddress": true,
+                    "requestTimeout": 20
+                  }
+                }
+              ],
+              "httpListeners": [
+                {
+                  "name": "appGatewayHttpListener",
+                  "properties": {
+                    "frontendIPConfiguration": {
+                      "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', parameters('resourceGroupName'), '/providers/Microsoft.Network/applicationGateways/', parameters('appGatewayName'), '/frontendIPConfigurations/appGatewayFrontendIP')]"
+                    },
+                    "frontendPort": {
+                      "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', parameters('resourceGroupName'), '/providers/Microsoft.Network/applicationGateways/', parameters('appGatewayName'), '/frontendPorts/appGatewayFrontendPort')]"
+                    },
+                    "protocol": "Https",
+                    "sslCertificate": {
+                      "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', parameters('resourceGroupName'), '/providers/Microsoft.Network/applicationGateways/', parameters('appGatewayName'), '/sslCertificates/appGatewaySslCertificate')]"
+                    },
+                    "requireServerNameIndication": false
+                  }
+                }
+              ],
+              "requestRoutingRules": [
+                {
+                  "name": "appGatewayRoutingRule",
+                  "properties": {
+                    "httpListener": {
+                      "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', parameters('resourceGroupName'), '/providers/Microsoft.Network/applicationGateways/', parameters('appGatewayName'), '/httpListeners/appGatewayHttpListener')]"
+                    },
+                    "backendAddressPool": {
+                      "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', parameters('resourceGroupName'), '/providers/Microsoft.Network/applicationGateways/', parameters('appGatewayName'), '/backendAddressPools/appGatewayBackendPool')]"
+                    },
+                    "backendHttpSettings": {
+                      "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', parameters('resourceGroupName'), '/providers/Microsoft.Network/applicationGateways/', parameters('appGatewayName'), '/backendHttpSettingsCollection/appGatewayBackendHttpSettings')]"
+                    }
+                  }
+                }
+              ],
+              "webApplicationFirewallConfiguration": {
+                "enabled": true,
+                "firewallMode": "Prevention",
+                "ruleSetType": "OWASP",
+                "ruleSetVersion": "3.1"
+              }
+            }
+          },
+          {
+            "type": "Microsoft.AAD/domainServices",
+            "name": "[concat(parameters('aadAppName'), '-aad')]",
+            "apiVersion": "2019-01-01",
+            "properties": {
+              "tenantId": "[parameters('tenantId')]",
+              "name": "[parameters('aadAppName')]",
+              "resourceGroup": "[parameters('aadAppResourceGroup')]",
+              "applicationId": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', parameters('aadAppResourceGroup'), '/providers/Microsoft.AAD/domainServices/', parameters('aadAppName'))]",
+              "signInAudience": "AzureADMyOrg",
+              "api": {
+                "requestedAccessTokenVersion": 2
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

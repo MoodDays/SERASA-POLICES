@@ -1,0 +1,129 @@
+{
+  "properties": {
+    "displayName": "Ensure Azure SQL Database Advanced Data Security and Azure Sentinel for Web Applications",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that Azure SQL Database Advanced Data Security is enabled to detect and mitigate remote code execution attempts, and Azure Sentinel is used to monitor and respond to suspicious activities.",
+    "metadata": {
+      "category": "Security"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "workspaceId": {
+        "type": "String",
+        "metadata": {
+          "description": "The ID of the Log Analytics Workspace for Azure Sentinel.",
+          "displayName": "Log Analytics Workspace ID"
+        }
+      },
+      "sqlServerName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the SQL Server.",
+          "displayName": "SQL Server Name"
+        }
+      },
+      "resourceGroupName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the resource group where the SQL Server is located.",
+          "displayName": "Resource Group Name"
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Sql/servers" // Condição: tipo do recurso deve ser um servidor SQL
+          },
+          {
+            "field": "name",
+            "equals": "[parameters('sqlServerName')]" // Condição: nome do servidor SQL
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": [
+          {
+            "type": "Microsoft.Sql/servers/databases/securityAlertPolicies",
+            "name": "Default",
+            "apiVersion": "2021-02-01-preview",
+            "properties": {
+              "state": "Enabled", // Habilita Advanced Data Security
+              "emailAccountAdmins": true, // Notifica administradores de conta
+              "emailAddresses": [
+                "security@example.com"
+              ],
+              "disabledAlerts": [],
+              "retentionDays": 30, // Dias de retenção dos logs de segurança
+              "storageAccountAccessKey": "",
+              "storageEndpoint": ""
+            }
+          },
+          {
+            "type": "Microsoft.OperationalInsights/workspaces",
+            "name": "[parameters('workspaceId')]",
+            "apiVersion": "2020-10-01",
+            "properties": {
+              "sku": {
+                "name": "PerGB2018"
+              }
+            }
+          },
+          {
+            "type": "Microsoft.Security/automations",
+            "name": "[concat('sentinel-automation-', field('name'))]",
+            "apiVersion": "2020-01-01-preview",
+            "properties": {
+              "description": "Automation to monitor and respond to security threats",
+              "scopes": [
+                {
+                  "scope": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', parameters('resourceGroupName'))]"
+                }
+              ],
+              "actions": [
+                {
+                  "type": "EventHub",
+                  "eventHub": {
+                    "connectionString": "[concat('Endpoint=sb://', field('name'), '.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=', field('key'))]",
+                    "authorizationRuleId": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.EventHub/namespaces/', field('name'), '/authorizationRules/RootManageSharedAccessKey')]"
+                  }
+                }
+              ],
+              "sources": [
+                {
+                  "eventSource": "Alerts",
+                  "ruleSets": [
+                    {
+                      "rules": [
+                        {
+                          "property": "Entity",
+                          "equals": "SQL Database"
+                        },
+                        {
+                          "property": "Severity",
+                          "equals": "High"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

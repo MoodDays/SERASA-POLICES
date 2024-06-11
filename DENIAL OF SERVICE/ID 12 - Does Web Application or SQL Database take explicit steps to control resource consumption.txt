@@ -1,0 +1,54 @@
+{
+  "properties": {
+    "displayName": "Ensure Resource Consumption Controls for Azure SQL Database and Web Applications",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that resource consumption controls and scalability policies are configured for Azure SQL Databases and Web Applications to mitigate resource consumption attacks.",
+    "metadata": {
+      "category": "Performance"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "location": {
+        "type": "String",
+        "metadata": {
+          "description": "The location of the resources.",
+          "displayName": "Location"
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Sql/servers/databases" // Condição: tipo do recurso deve ser um banco de dados SQL
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": {
+          "type": "Microsoft.Sql/servers/databases",
+          "name": "[field('name')]",
+          "apiVersion": "2021-02-01-preview",
+          "location": "[parameters('location')]",
+          "properties": {
+            "requestedServiceObjectiveName": "S0", // Configuração de objetivo de serviço para limitar o consumo de recursos
+            "autoPauseDelay": 60, // Configuração de auto-pausa
+            "minCapacity": 0.5, // Capacidade mínima
+            "maxCapacity": 2 // Capacidade máxima
+          }
+        }
+      }
+    }
+  }
+}

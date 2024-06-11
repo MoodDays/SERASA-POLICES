@@ -1,0 +1,100 @@
+{
+  "properties": {
+    "displayName": "Ensure Azure Managed Identity and Key Vault for Secure Memory Access",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that Azure Managed Identity and Key Vault are configured to secure memory access for web applications by minimizing permissions and securely storing secrets and encryption keys.",
+    "metadata": {
+      "category": "Security"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "keyVaultName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the Azure Key Vault.",
+          "displayName": "Key Vault Name"
+        }
+      },
+      "keyVaultResourceGroup": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the resource group where the Azure Key Vault is located.",
+          "displayName": "Key Vault Resource Group"
+        }
+      },
+      "appName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the web application.",
+          "displayName": "Web Application Name"
+        }
+      },
+      "appResourceGroup": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the resource group where the web application is located.",
+          "displayName": "Web Application Resource Group"
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Web/sites" // Condição: tipo do recurso deve ser uma aplicação web
+          },
+          {
+            "field": "name",
+            "equals": "[parameters('appName')]" // Condição: nome da aplicação web
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": {
+          "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+          "name": "[concat(parameters('appName'), '-identity')]",
+          "apiVersion": "2021-01-01",
+          "location": "[field('location')]",
+          "properties": {}
+        }
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.KeyVault/vaults",
+      "name": "[parameters('keyVaultName')]",
+      "apiVersion": "2021-04-01-preview",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "sku": {
+          "family": "A",
+          "name": "standard"
+        },
+        "tenantId": "[subscription().tenantId]",
+        "accessPolicies": [
+          {
+            "tenantId": "[subscription().tenantId]",
+            "objectId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', concat(parameters('appName'), '-identity'))).principalId]",
+            "permissions": {
+              "keys": ["get", "list", "create", "update"],
+              "secrets": ["get", "list", "set"],
+              "certificates": ["get", "list", "update"]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
