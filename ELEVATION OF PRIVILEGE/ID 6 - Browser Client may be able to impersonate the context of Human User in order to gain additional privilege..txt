@@ -1,0 +1,43 @@
+# Política de Localização Nomeada para o Brasil
+
+{
+  "properties": {
+    "displayName": "Brazil",
+    "countriesOrRegions": ["BR"],
+    "includeUnknownCountriesOrRegions": false
+  }
+}
+
+# Política de Acesso Condicional para Restringir Acesso Baseado em Geolocalização, Risco de Login e Conformidade do Dispositivo
+
+{
+  "properties": {
+    "displayName": "Restrict Access to Brazil and Compliant Devices",
+    "state": "enabled",
+    "conditions": {
+      "users": {
+        "includeUsers": ["All"],
+        "excludeUsers": []
+      },
+      "applications": {
+        "includeApplications": ["All"]
+      },
+      "locations": {
+        "includeLocations": ["LocationIdForBrazil"]  // Substitua com o ID da localização nomeada do Brasil
+      },
+      "signInRiskLevels": ["high"],
+      "userRiskLevels": ["high"],
+      "clientAppTypes": ["all"],
+      "platforms": {
+        "includePlatforms": ["all"]
+      },
+      "deviceStates": {
+        "includeDeviceStates": ["Compliant"]
+      }
+    },
+    "grantControls": {
+      "operator": "AND",
+      "builtInControls": ["mfa"]
+    }
+  }
+}

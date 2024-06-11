@@ -1,0 +1,155 @@
+{
+  "properties": {
+    "displayName": "Ensure Azure Application Gateway with WAF for CSRF Protection", // Nome da política
+    "policyType": "Custom", // Tipo da política (Customizada)
+    "mode": "All", // Modo da política (Todos os recursos)
+    "description": "Ensure that all web applications are protected against CSRF attacks by using Azure Application Gateway with Web Application Firewall (WAF).", // Descrição da política
+    "metadata": {
+      "category": "Security" // Categoria da política
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists", // Implementar se não existir
+          "AuditIfNotExists", // Auditar se não existir
+          "Disabled" // Desativado
+        ],
+        "defaultValue": "DeployIfNotExists" // Valor padrão (DeployIfNotExists)
+      },
+      "resourceGroup": {
+        "type": "String", // Tipo do parâmetro
+        "metadata": {
+          "description": "The resource group of the Azure Application Gateway.", // Descrição do parâmetro
+          "displayName": "Resource Group" // Nome exibido do parâmetro
+        }
+      },
+      "applicationGatewayName": {
+        "type": "String", // Tipo do parâmetro
+        "metadata": {
+          "description": "The name of the Azure Application Gateway.", // Descrição do parâmetro
+          "displayName": "Application Gateway Name" // Nome exibido do parâmetro
+        }
+      },
+      "wafPolicyName": {
+        "type": "String", // Tipo do parâmetro
+        "metadata": {
+          "description": "The name of the WAF policy to apply.", // Descrição do parâmetro
+          "displayName": "WAF Policy Name" // Nome exibido do parâmetro
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Web/sites" // Condição: tipo do recurso deve ser uma aplicação web
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": {
+          "type": "Microsoft.Network/applicationGateways", // Tipo do recurso a ser configurado
+          "name": "[parameters('applicationGatewayName')]", // Nome do Application Gateway
+          "apiVersion": "2020-11-01", // Versão da API
+          "properties": {
+            "sku": {
+              "name": "WAF_v2", // Nome da SKU do Application Gateway
+              "tier": "WAF_v2" // Nível da SKU (WAF_v2)
+            },
+            "gatewayIPConfigurations": [
+              {
+                "name": "appGatewayIpConfig", // Nome da configuração de IP do Gateway
+                "properties": {
+                  "subnet": {
+                    "id": "/subscriptions/{subscription-id}/resourceGroups/{resource-group}/providers/Microsoft.Network/virtualNetworks/{vnet-name}/subnets/{subnet-name}" // ID do subnet
+                  }
+                }
+              }
+            ],
+            "frontendIPConfigurations": [
+              {
+                "name": "appGatewayFrontendIp", // Nome da configuração de IP frontend
+                "properties": {
+                  "publicIPAddress": {
+                    "id": "/subscriptions/{subscription-id}/resourceGroups/{resource-group}/providers/Microsoft.Network/publicIPAddresses/{public-ip-name}" // ID do IP público
+                  }
+                }
+              }
+            ],
+            "frontendPorts": [
+              {
+                "name": "appGatewayFrontendPort", // Nome da porta frontend
+                "properties": {
+                  "port": 80 // Porta a ser utilizada
+                }
+              }
+            ],
+            "backendAddressPools": [
+              {
+                "name": "appGatewayBackendPool", // Nome do pool de endereços backend
+                "properties": {
+                  "backendAddresses": [] // Endereços backend
+                }
+              }
+            ],
+            "backendHttpSettingsCollection": [
+              {
+                "name": "appGatewayBackendHttpSettings", // Nome das configurações HTTP backend
+                "properties": {
+                  "port": 80, // Porta a ser utilizada
+                  "protocol": "Http", // Protocolo
+                  "cookieBasedAffinity": "Disabled", // Afinidade baseada em cookies desativada
+                  "requestTimeout": 20 // Tempo limite de solicitação
+                }
+              }
+            ],
+            "httpListeners": [
+              {
+                "name": "appGatewayHttpListener", // Nome do ouvinte HTTP
+                "properties": {
+                  "frontendIPConfiguration": {
+                    "id": "[concat(resourceId('Microsoft.Network/applicationGateways', parameters('applicationGatewayName')), '/frontendIPConfigurations/appGatewayFrontendIp')]" // ID da configuração de IP frontend
+                  },
+                  "frontendPort": {
+                    "id": "[concat(resourceId('Microsoft.Network/applicationGateways', parameters('applicationGatewayName')), '/frontendPorts/appGatewayFrontendPort')]" // ID da porta frontend
+                  },
+                  "protocol": "Http" // Protocolo
+                }
+              }
+            ],
+            "urlPathMaps": [],
+            "requestRoutingRules": [
+              {
+                "name": "appGatewayRoutingRule", // Nome da regra de roteamento
+                "properties": {
+                  "ruleType": "Basic", // Tipo de regra (Básica)
+                  "httpListener": {
+                    "id": "[concat(resourceId('Microsoft.Network/applicationGateways', parameters('applicationGatewayName')), '/httpListeners/appGatewayHttpListener')]" // ID do ouvinte HTTP
+                  },
+                  "backendAddressPool": {
+                    "id": "[concat(resourceId('Microsoft.Network/applicationGateways', parameters('applicationGatewayName')), '/backendAddressPools/appGatewayBackendPool')]" // ID do pool de endereços backend
+                  },
+                  "backendHttpSettings": {
+                    "id": "[concat(resourceId('Microsoft.Network/applicationGateways', parameters('applicationGatewayName')), '/backendHttpSettingsCollection/appGatewayBackendHttpSettings')]" // ID das configurações HTTP backend
+                  }
+                }
+              }
+            ],
+            "webApplicationFirewallConfiguration": {
+              "enabled": true, // Habilita o WAF
+              "firewallMode": "Prevention", // Modo do firewall (Prevenção)
+              "ruleSetType": "OWASP", // Tipo de conjunto de regras (OWASP)
+              "ruleSetVersion": "3.2", // Versão do conjunto de regras
+              "policySettings": {
+                "policyName": "[parameters('wafPolicyName')]" // Nome da política de WAF
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

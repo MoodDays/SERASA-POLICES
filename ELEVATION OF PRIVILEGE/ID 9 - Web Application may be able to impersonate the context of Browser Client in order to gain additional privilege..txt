@@ -1,0 +1,47 @@
+{
+  "properties": {
+    "displayName": "Ensure Managed Identities for Web Applications",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that all web applications use Managed Identities to avoid explicit credentials.",
+    "metadata": {
+      "category": "Security"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "AuditIfNotExists",
+          "DeployIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Web/sites"
+          },
+          {
+            "field": "kind",
+            "equals": "app"
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]",
+        "details": {
+          "type": "Microsoft.Web/sites/identity",
+          "name": "default",
+          "apiVersion": "2018-11-01",
+          "properties": {
+            "type": "SystemAssigned"
+          }
+        }
+      }
+    }
+  }
+}
