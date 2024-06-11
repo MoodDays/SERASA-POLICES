@@ -1,0 +1,4 @@
+|-- my-azure-function
+    |-- __init__.py
+    |-- requirements.txt
+    |-- function.json
