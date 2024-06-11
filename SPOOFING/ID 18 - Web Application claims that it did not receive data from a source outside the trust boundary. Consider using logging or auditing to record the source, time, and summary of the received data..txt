@@ -1,0 +1,52 @@
+{
+  "properties": {
+    "displayName": "Ensure Standard Authentication Mechanism using Azure Active Directory for SQL Database",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that SQL Databases use Azure Active Directory for authentication to prevent unauthorized access by spoofed web applications.",
+    "metadata": {
+      "category": "Security"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "tenantId": {
+        "type": "String",
+        "metadata": {
+          "description": "The Tenant ID of the Azure Active Directory.",
+          "displayName": "Tenant ID"
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Sql/servers/databases" // Condição: tipo do recurso deve ser um banco de dados SQL
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": {
+          "type": "Microsoft.Sql/servers/adadmin",
+          "name": "aadAdmin",
+          "apiVersion": "2019-06-01-preview",
+          "properties": {
+            "login": "aadAdminUser", // Nome do usuário administrador do AAD
+            "sid": "[parameters('tenantId')]", // ID do Tenant do AAD
+            "tenantId": "[parameters('tenantId')]"
+          }
+        }
+      }
+    }
+  }
+}
