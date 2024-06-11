@@ -1,0 +1,84 @@
+{
+  "properties": {
+    "displayName": "Ensure Azure Monitor and Log Analytics for Detailed Auditing and Monitoring",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that all resources are monitored by Azure Monitor and Log Analytics to track detailed auditing and monitoring information.",
+    "metadata": {
+      "category": "Security"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "logAnalyticsWorkspaceId": {
+        "type": "String",
+        "metadata": {
+          "description": "The ID of the Log Analytics Workspace for Azure Monitor.",
+          "displayName": "Log Analytics Workspace ID"
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Web/sites" // Condição: tipo do recurso deve ser uma aplicação web
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": {
+          "type": "Microsoft.Insights/components",
+          "name": "[concat('app-insights-', parameters('logAnalyticsWorkspaceId'))]",
+          "apiVersion": "2020-02-02-preview",
+          "location": "[field('location')]",
+          "properties": {
+            "Application_Type": "web",
+            "Flow_Type": "Bluefield",
+            "Request_Source": "AzurePolicy",
+            "WorkspaceResourceId": "[parameters('logAnalyticsWorkspaceId')]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "name": "app-insights-diagnostics",
+              "apiVersion": "2021-05-01-preview",
+              "properties": {
+                "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "logs": [
+                  {
+                    "category": "AllLogs",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "days": 30,
+                      "enabled": false
+                    }
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true,
+                    "retentionPolicy": {
+                      "days": 30,
+                      "enabled": false
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
