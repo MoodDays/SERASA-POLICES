@@ -1,0 +1,121 @@
+{
+  "properties": {
+    "displayName": "Ensure Azure Web Application Firewall and Input Sanitization for Web Applications",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that Azure Web Application Firewall (WAF) is configured with OWASP rules to protect against XSS attacks and that input sanitization libraries and frameworks are implemented in Azure App Service.",
+    "metadata": {
+      "category": "Security"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "frontDoorName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the Azure Front Door.",
+          "displayName": "Front Door Name"
+        }
+      },
+      "resourceGroupName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the resource group where the Front Door is located.",
+          "displayName": "Resource Group Name"
+        }
+      },
+      "wafPolicyName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the WAF policy.",
+          "displayName": "WAF Policy Name"
+        }
+      },
+      "appServiceName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the Azure App Service.",
+          "displayName": "App Service Name"
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Web/sites" // Condição: tipo do recurso deve ser uma aplicação web
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": [
+          {
+            "type": "Microsoft.Cdn/profiles/afdEndpoints",
+            "name": "[concat(parameters('frontDoorName'), '-afd')]",
+            "apiVersion": "2020-09-01",
+            "properties": {
+              "enabledState": "Enabled",
+              "provisioningState": "Succeeded",
+              "resourceState": "Running",
+              "hostName": "[concat(parameters('frontDoorName'), '.azurefd.net')]",
+              "endpointName": "[parameters('frontDoorName')]",
+              "resourceGroupName": "[parameters('resourceGroupName')]"
+            },
+            "dependsOn": []
+          },
+          {
+            "type": "Microsoft.Cdn/profiles/securityPolicies",
+            "name": "[parameters('wafPolicyName')]",
+            "apiVersion": "2020-09-01",
+            "properties": {
+              "resourceGroupName": "[parameters('resourceGroupName')]",
+              "policySettings": {
+                "customRules": {
+                  "rules": [
+                    {
+                      "name": "BlockXSS",
+                      "priority": 1,
+                      "enabledState": "Enabled",
+                      "action": "Block",
+                      "matchConditions": [
+                        {
+                          "matchVariable": "QueryString",
+                          "operator": "Contains",
+                          "matchValue": ["<script>", "</script>"]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "type": "Microsoft.Web/sites",
+            "name": "[parameters('appServiceName')]",
+            "apiVersion": "2021-01-01",
+            "properties": {
+              "siteConfig": {
+                "appSettings": [
+                  {
+                    "name": "SanitizationLibrary",
+                    "value": "True" // Implementa biblioteca de sanitização de entrada
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

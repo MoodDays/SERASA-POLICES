@@ -1,0 +1,154 @@
+{
+  "properties": {
+    "displayName": "Ensure Azure Web Application Firewall and Application Insights for Browser Client Protection",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that Azure Web Application Firewall (WAF) is configured to protect against attacks that alter the program execution flow in Browser Client and that Azure Application Insights is integrated to monitor and detect anomalous behaviors.",
+    "metadata": {
+      "category": "Security"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "frontDoorName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the Azure Front Door.",
+          "displayName": "Front Door Name"
+        }
+      },
+      "resourceGroupName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the resource group where the Front Door is located.",
+          "displayName": "Resource Group Name"
+        }
+      },
+      "wafPolicyName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the WAF policy.",
+          "displayName": "WAF Policy Name"
+        }
+      },
+      "appInsightsName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the Application Insights resource.",
+          "displayName": "Application Insights Name"
+        }
+      },
+      "appServiceName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the Azure App Service.",
+          "displayName": "App Service Name"
+        }
+      },
+      "appServiceResourceGroup": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the resource group where the App Service is located.",
+          "displayName": "App Service Resource Group"
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Web/sites" // Condição: tipo do recurso deve ser uma aplicação web
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": [
+          {
+            "type": "Microsoft.Cdn/profiles/afdEndpoints",
+            "name": "[concat(parameters('frontDoorName'), '-afd')]",
+            "apiVersion": "2020-09-01",
+            "properties": {
+              "enabledState": "Enabled",
+              "provisioningState": "Succeeded",
+              "resourceState": "Running",
+              "hostName": "[concat(parameters('frontDoorName'), '.azurefd.net')]",
+              "endpointName": "[parameters('frontDoorName')]",
+              "resourceGroupName": "[parameters('resourceGroupName')]"
+            },
+            "dependsOn": []
+          },
+          {
+            "type": "Microsoft.Cdn/profiles/securityPolicies",
+            "name": "[parameters('wafPolicyName')]",
+            "apiVersion": "2020-09-01",
+            "properties": {
+              "resourceGroupName": "[parameters('resourceGroupName')]",
+              "policySettings": {
+                "customRules": {
+                  "rules": [
+                    {
+                      "name": "BlockMaliciousInput",
+                      "priority": 1,
+                      "enabledState": "Enabled",
+                      "action": "Block",
+                      "matchConditions": [
+                        {
+                          "matchVariable": "QueryString",
+                          "operator": "Contains",
+                          "matchValue": ["<script>", "</script>", "alert(", "onerror="]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "type": "Microsoft.Insights/components",
+            "name": "[parameters('appInsightsName')]",
+            "apiVersion": "2020-02-02",
+            "properties": {
+              "Application_Type": "web",
+              "Flow_Type": "Redfield",
+              "Request_Source": "rest",
+              "RetentionInDays": 90,
+              "IngestionMode": "ApplicationInsights"
+            },
+            "location": "[resourceGroup().location]"
+          },
+          {
+            "type": "Microsoft.Web/sites/config",
+            "name": "web",
+            "apiVersion": "2020-09-01",
+            "properties": {
+              "appSettings": [
+                {
+                  "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                  "value": "[reference(resourceId('Microsoft.Insights/components', parameters('appInsightsName'))).InstrumentationKey]"
+                },
+                {
+                  "name": "ApplicationInsightsAgent_EXTENSION_VERSION",
+                  "value": "~2"
+                }
+              ]
+            },
+            "dependsOn": [
+              "[resourceId('Microsoft.Insights/components', parameters('appInsightsName'))]",
+              "[resourceId('Microsoft.Web/sites', parameters('appServiceName'))]"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

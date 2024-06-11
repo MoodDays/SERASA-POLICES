@@ -1,0 +1,69 @@
+{
+  "properties": {
+    "displayName": "Ensure Azure Defender for SQL and Threat Detection for SQL Injection",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that SQL Databases use parameterized queries and ORM to prevent SQL Injection. Enable threat detection in Azure SQL Database and activate Azure Defender for SQL to monitor, detect, and mitigate suspicious activities.",
+    "metadata": {
+      "category": "Security"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Sql/servers/databases" // Condição: tipo do recurso deve ser um banco de dados SQL
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": [
+          {
+            "type": "Microsoft.Sql/servers/databases/securityAlertPolicies",
+            "name": "Default",
+            "apiVersion": "2021-02-01-preview",
+            "properties": {
+              "state": "Enabled", // Habilita a detecção de ameaças
+              "emailAccountAdmins": true, // Notifica administradores de conta
+              "emailAddresses": [
+                "security@example.com" // Endereço de email para notificação de segurança
+              ],
+              "disabledAlerts": [],
+              "retentionDays": 30, // Dias de retenção dos logs de segurança
+              "storageAccountAccessKey": "",
+              "storageEndpoint": ""
+            }
+          },
+          {
+            "type": "Microsoft.Sql/servers/securityAlertPolicies",
+            "name": "Default",
+            "apiVersion": "2021-02-01-preview",
+            "properties": {
+              "state": "Enabled", // Habilita Azure Defender for SQL
+              "emailAccountAdmins": true, // Notifica administradores de conta
+              "emailAddresses": [
+                "security@example.com"
+              ],
+              "disabledAlerts": [],
+              "retentionDays": 30,
+              "storageAccountAccessKey": "",
+              "storageEndpoint": ""
+            }
+          }
+        ]
+      }
+    }
+  }
+}

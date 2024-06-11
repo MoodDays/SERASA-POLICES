@@ -1,0 +1,141 @@
+{
+  "properties": {
+    "displayName": "Ensure Defender for Cloud and Azure Key Vault for Web Applications",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Ensure that Defender for Cloud is used to monitor and enforce security policies that restrict direct memory access and validate data before processing. Use Azure Key Vault to securely store and manage secrets, keys, and certificates.",
+    "metadata": {
+      "category": "Security"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "keyVaultName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the Azure Key Vault.",
+          "displayName": "Key Vault Name"
+        }
+      },
+      "keyVaultResourceGroup": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the resource group where the Azure Key Vault is located.",
+          "displayName": "Key Vault Resource Group"
+        }
+      },
+      "workspaceId": {
+        "type": "String",
+        "metadata": {
+          "description": "The ID of the Log Analytics Workspace for Defender for Cloud.",
+          "displayName": "Log Analytics Workspace ID"
+        }
+      },
+      "appName": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the web application.",
+          "displayName": "Web Application Name"
+        }
+      },
+      "appResourceGroup": {
+        "type": "String",
+        "metadata": {
+          "description": "The name of the resource group where the web application is located.",
+          "displayName": "Web Application Resource Group"
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.Web/sites" // Condição: tipo do recurso deve ser uma aplicação web
+          },
+          {
+            "field": "name",
+            "equals": "[parameters('appName')]" // Condição: nome da aplicação web
+          }
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]", // Efeito da política (DeployIfNotExists, AuditIfNotExists ou Disabled)
+        "details": [
+          {
+            "type": "Microsoft.KeyVault/vaults",
+            "name": "[parameters('keyVaultName')]",
+            "apiVersion": "2021-04-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+              "sku": {
+                "family": "A",
+                "name": "standard"
+              },
+              "tenantId": "[subscription().tenantId]",
+              "accessPolicies": [
+                {
+                  "tenantId": "[subscription().tenantId]",
+                  "objectId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', concat(parameters('appName'), '-identity'))).principalId]",
+                  "permissions": {
+                    "keys": ["get", "list", "create", "update"],
+                    "secrets": ["get", "list", "set"],
+                    "certificates": ["get", "list", "update"]
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "type": "Microsoft.Security/automations",
+            "name": "[concat('defenderAutomation-', field('name'))]",
+            "apiVersion": "2020-01-01-preview",
+            "properties": {
+              "description": "Automation to monitor and enforce security policies",
+              "scopes": [
+                {
+                  "scope": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', parameters('appResourceGroup'))]"
+                }
+              ],
+              "actions": [
+                {
+                  "type": "EventHub",
+                  "eventHub": {
+                    "connectionString": "[concat('Endpoint=sb://', field('name'), '.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=', field('key'))]",
+                    "authorizationRuleId": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.EventHub/namespaces/', field('name'), '/authorizationRules/RootManageSharedAccessKey')]"
+                  }
+                }
+              ],
+              "sources": [
+                {
+                  "eventSource": "Alerts",
+                  "ruleSets": [
+                    {
+                      "rules": [
+                        {
+                          "property": "Entity",
+                          "equals": "Web Application"
+                        },
+                        {
+                          "property": "Severity",
+                          "equals": "High"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}
